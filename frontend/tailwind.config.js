@@ -8,21 +8,43 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#0b0f19",
-        surface: "#111827",
-        "surface-card": "rgba(17, 24, 39, 0.7)",
-        border: "#1f2937",
-        primary: "#6366f1",
-        "primary-hover": "#4f46e5",
-        accent: "#10b981",
-        warning: "#f59e0b",
-        danger: "#ef4444",
+        background: "#f8fafc",
+        surface: "#ffffff",
+        "surface-card": "#ffffff",
+        "surface-hover": "#f1f5f9",
+        border: "#e2e8f0",
+        "border-subtle": "#f1f5f9",
+        primary: {
+          DEFAULT: "#4f46e5",
+          hover: "#4338ca",
+          light: "#e0e7ff",
+          subtle: "#eef2ff",
+        },
+        accent: {
+          DEFAULT: "#059669",
+          light: "#d1fae5",
+          subtle: "#ecfdf5",
+        },
+        warning: {
+          DEFAULT: "#d97706",
+          light: "#fef3c7",
+        },
+        danger: {
+          DEFAULT: "#e11d48",
+          light: "#ffe4e6",
+        },
+        slate: {
+          75: "#f4f6f9",
+        }
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Outfit", "Inter", "sans-serif"],
       },
-      backdropBlur: {
-        xs: "2px",
+      boxShadow: {
+        "card-sm": "0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)",
+        "card-md": "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
+        "card-hover": "0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -4px rgba(0, 0, 0, 0.05)",
       },
     },
   },
