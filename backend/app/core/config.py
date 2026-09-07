@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Google Places API (New) Credentials
+    GOOGLE_MAPS_API_KEY: str = ""
+    GOOGLE_PLACES_ENABLED: bool = True
+
     # CORS Origins
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

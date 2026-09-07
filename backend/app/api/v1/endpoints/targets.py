@@ -154,7 +154,7 @@ async def trigger_target_run(
 ):
     """
     Triggers a new discovery run for a target.
-    Creates a TargetRun record in QUEUED state and dispatches execution queue abstraction.
+    Creates a TargetRun record in QUEUED state and dispatches background discovery worker task.
     """
     result = await db.execute(select(Target).where(Target.id == target_id))
     target = result.scalar_one_or_none()
@@ -185,6 +185,12 @@ async def trigger_target_run(
     db.add(target_run)
     await db.commit()
     await db.refresh(target_run)
+
+    # Dispatch asynchronous discovery worker task
+    from app.tasks.discovery import execute_discovery_run_async
+    import asyncio
+    asyncio.create_task(execute_discovery_run_async(target_run.id))
+
     return target_run
 
 
@@ -231,3 +237,54 @@ async def get_target_run_details(
         )
 
     return target_run
+
+
+@router.get("/{target_id}/runs/{run_id}/progress", summary="Get Discovery Run Real-Time Progress")
+async def get_target_run_progress(
+    target_id: uuid.UUID,
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves real-time progress metrics for a running or queued discovery run."""
+    result = await db.execute(
+        select(TargetRun)
+        .where(TargetRun.id == run_id, TargetRun.target_id == target_id)
+    )
+    target_run = result.scalar_one_or_none()
+
+    if not target_run:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Target run '{run_id}' for target '{target_id}' was not found."
+        )
+
+    status_str = target_run.status.value
+    progress_percentage = 0
+    step_message = "Queued in discovery pipeline"
+
+    if status_str == "QUEUED":
+        progress_percentage = 10
+        step_message = "Waiting for background discovery worker..."
+    elif status_str == "RUNNING":
+        progress_percentage = 50
+        step_message = "Executing Google Places (New) Text Search & Entity Resolver..."
+    elif status_str == "COMPLETED":
+        progress_percentage = 100
+        step_message = "Discovery Engine execution complete."
+    elif status_str == "FAILED":
+        progress_percentage = 100
+        step_message = f"Execution failed: {target_run.error_log.get('message', 'Source Error')}"
+
+    return {
+        "run_id": str(target_run.id),
+        "target_id": str(target_run.target_id),
+        "status": status_str,
+        "progress_percentage": progress_percentage,
+        "step_message": step_message,
+        "total_discovered": target_run.total_discovered,
+        "total_verified": target_run.total_verified,
+        "started_at": target_run.started_at.isoformat() if target_run.started_at else None,
+        "completed_at": target_run.completed_at.isoformat() if target_run.completed_at else None,
+        "error_log": target_run.error_log,
+    }
+

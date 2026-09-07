@@ -59,6 +59,13 @@ export default function TargetDetailPage() {
     queryKey: ["targetRuns", targetId],
     queryFn: () => fetchTargetRuns(targetId),
     enabled: !!targetId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data && data.some((r) => r.status === "QUEUED" || r.status === "RUNNING")) {
+        return 2000; // Poll every 2s while discovery runs are active
+      }
+      return false;
+    },
   });
 
   // Trigger Run Mutation

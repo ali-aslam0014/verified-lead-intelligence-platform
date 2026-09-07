@@ -45,8 +45,7 @@ export function NavigationSidebar() {
       name: "Lead Directory",
       href: "/leads",
       icon: Building2,
-      enabled: false,
-      badge: "Phase 2",
+      enabled: true,
     },
     {
       name: "Verification Review",
