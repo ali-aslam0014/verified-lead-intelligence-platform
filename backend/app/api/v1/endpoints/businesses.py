@@ -55,6 +55,11 @@ class BusinessResponse(BaseModel):
     lifecycle_status: str
     business_confidence: float
     website: Optional[WebsiteSchema] = None
+    has_website: bool = False
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
+    social_links: dict = {}
+    opportunity_signals: List[str] = []
     contacts: List[ContactSchema] = []
     source_records_count: int = 0
     created_at: str
@@ -73,6 +78,7 @@ async def list_businesses(
     limit: int = Query(20, ge=1, le=100, description="Page size limit"),
     search: Optional[str] = Query(None, description="Search by business name, city, or phone"),
     city: Optional[str] = Query(None, description="Filter by city"),
+    has_website: Optional[bool] = Query(None, description="Filter by website availability"),
     status: Optional[LifecycleStatus] = Query(None, description="Filter by lifecycle status"),
     db: AsyncSession = Depends(get_db)
 ):
@@ -111,6 +117,12 @@ async def list_businesses(
 
     response_items = []
     for b in businesses:
+        latest_sr_data = b.source_records[0].raw_data if b.source_records else {}
+        b_has_website = bool(b.website or latest_sr_data.get("has_website") or latest_sr_data.get("website"))
+        
+        if has_website is not None and b_has_website != has_website:
+            continue
+
         b_dict = {
             "id": b.id,
             "name": b.name,
@@ -121,7 +133,7 @@ async def list_businesses(
             "state": b.state,
             "country": b.country,
             "postal_code": b.postal_code,
-            "phone": b.phone,
+            "phone": b.phone or latest_sr_data.get("phone"),
             "lifecycle_status": b.lifecycle_status.value,
             "business_confidence": b.business_confidence,
             "website": {
@@ -130,6 +142,11 @@ async def list_businesses(
                 "domain": b.website.domain,
                 "status": b.website.status.value,
             } if b.website else None,
+            "has_website": b_has_website,
+            "rating": latest_sr_data.get("rating"),
+            "review_count": latest_sr_data.get("review_count"),
+            "social_links": latest_sr_data.get("social_links") or {},
+            "opportunity_signals": latest_sr_data.get("opportunity_signals") or (["NO_WEBSITE"] if not b_has_website else []),
             "contacts": [
                 {
                     "id": c.id,
@@ -187,6 +204,9 @@ async def get_business_detail(
         for sr in b.source_records
     ]
 
+    latest_sr_data = b.source_records[0].raw_data if b.source_records else {}
+    b_has_website = bool(b.website or latest_sr_data.get("has_website") or latest_sr_data.get("website"))
+
     return {
         "id": b.id,
         "name": b.name,
@@ -197,7 +217,7 @@ async def get_business_detail(
         "state": b.state,
         "country": b.country,
         "postal_code": b.postal_code,
-        "phone": b.phone,
+        "phone": b.phone or latest_sr_data.get("phone"),
         "lifecycle_status": b.lifecycle_status.value,
         "business_confidence": b.business_confidence,
         "website": {
@@ -206,6 +226,11 @@ async def get_business_detail(
             "domain": b.website.domain,
             "status": b.website.status.value,
         } if b.website else None,
+        "has_website": b_has_website,
+        "rating": latest_sr_data.get("rating"),
+        "review_count": latest_sr_data.get("review_count"),
+        "social_links": latest_sr_data.get("social_links") or {},
+        "opportunity_signals": latest_sr_data.get("opportunity_signals") or (["NO_WEBSITE"] if not b_has_website else []),
         "contacts": [
             {
                 "id": c.id,

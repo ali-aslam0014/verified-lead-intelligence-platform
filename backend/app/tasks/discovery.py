@@ -10,6 +10,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.target import TargetRun, Target
 from app.models.enums import TargetRunStatus
 from app.sources.base import DiscoveryRequest
+from app.sources.live_google_places import LiveGooglePlacesAdapter
 from app.sources.google_places import GooglePlacesAdapter, GooglePlacesAPIError
 from app.sources.website_enrichment import WebsiteEnrichmentAdapter
 from app.services.resolver import BusinessResolver
@@ -20,8 +21,9 @@ logger = logging.getLogger(__name__)
 async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any]:
     """
     Asynchronous discovery execution worker.
-    Reads target definition, queries Google Places API (New), stores verbatim SourceRecord provenance,
-    runs BusinessResolver deduplication, and updates TargetRun status.
+    Reads target definition, queries Live Google Places / Search engine,
+    stores verbatim SourceRecord provenance, runs BusinessResolver deduplication,
+    and updates TargetRun status.
     """
     logger.info(f"Starting Discovery Engine execution for TargetRun ID: {target_run_id}")
 
@@ -47,8 +49,6 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
         await db.commit()
 
         try:
-            # 1. Primary Discovery: Google Places API
-            places_adapter = GooglePlacesAdapter()
             request = DiscoveryRequest(
                 niche=target.niche,
                 geography=target.geography,
@@ -57,7 +57,15 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
                 source_configuration=target.source_configuration or {},
             )
 
-            raw_results = await places_adapter.search(request)
+            # Try Live Google Places Search first (No API key requirement)
+            live_adapter = LiveGooglePlacesAdapter()
+            raw_results = await live_adapter.search(request)
+
+            # If Live adapter produced results, process them
+            if not raw_results:
+                # Fallback to Google Places API if configured
+                places_adapter = GooglePlacesAdapter()
+                raw_results = await places_adapter.search(request)
 
             # 2. Entity Resolution & Deduplication
             resolver = BusinessResolver()
@@ -112,18 +120,6 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
                 "unique_businesses": total_unique_businesses,
                 "duplicates_merged": duplicates_merged,
             }
-
-        except GooglePlacesAPIError as g_err:
-            logger.error(f"Google Places API Error during discovery run '{target_run_id}': {g_err}")
-            target_run.status = TargetRunStatus.FAILED
-            target_run.completed_at = datetime.now(timezone.utc)
-            target_run.error_log = {
-                "error_type": "GooglePlacesAPIError",
-                "message": str(g_err),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            await db.commit()
-            return {"status": "FAILED", "error": str(g_err)}
 
         except Exception as exc:
             logger.exception(f"Unexpected error executing discovery run '{target_run_id}': {exc}")

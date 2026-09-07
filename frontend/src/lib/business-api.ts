@@ -38,6 +38,11 @@ export interface DiscoveredBusiness {
   lifecycle_status: string;
   business_confidence: number;
   website?: WebsiteData | null;
+  has_website?: boolean;
+  rating?: number | null;
+  review_count?: number | null;
+  social_links?: Record<string, string>;
+  opportunity_signals?: string[];
   contacts: ContactData[];
   source_records_count: number;
   source_records?: SourceRecordData[];
@@ -78,11 +83,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-export async function fetchBusinesses(params?: { search?: string; city?: string; status?: string }): Promise<DiscoveredBusiness[]> {
+export async function fetchBusinesses(params?: { search?: string; city?: string; status?: string; has_website?: boolean }): Promise<DiscoveredBusiness[]> {
   const query = new URLSearchParams();
   if (params?.search) query.append("search", params.search);
   if (params?.city) query.append("city", params.city);
   if (params?.status) query.append("status", params.status);
+  if (params?.has_website !== undefined) query.append("has_website", String(params.has_website));
 
   const url = `${API_BASE_URL}/api/v1/businesses${query.toString() ? `?${query.toString()}` : ""}`;
   const res = await fetch(url, {

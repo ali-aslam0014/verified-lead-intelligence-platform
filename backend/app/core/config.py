@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     GOOGLE_PLACES_ENABLED: bool = True
 
     # CORS Origins
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
