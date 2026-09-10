@@ -258,6 +258,14 @@ export default function TargetDetailPage() {
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => router.push(`/leads?search=${encodeURIComponent(target.niche)}&city=${encodeURIComponent(target.geography)}`)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition shadow-md shadow-slate-900/10"
+            >
+              <Building className="w-4 h-4 text-emerald-400" />
+              <span>View Discovered Leads</span>
+            </button>
+
+            <button
               onClick={() => triggerRunMutation.mutate()}
               disabled={triggerRunMutation.isPending || target.status === "CANCELLED"}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition shadow-md shadow-indigo-500/20 disabled:opacity-50"

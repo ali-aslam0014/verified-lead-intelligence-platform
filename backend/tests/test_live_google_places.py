@@ -31,8 +31,12 @@ async def test_resolver_preserves_no_website_opportunity_signal(async_session):
     # Find item without website
     no_website_item = next(r for r in results if r.raw_data.get("has_website") is False)
     
-    # Ensure unique place ID for test isolation
-    no_website_item.source_identifier = f"test_no_web_{uuid.uuid4().hex}"
+    # Ensure unique name, address & phone for test isolation
+    uid = uuid.uuid4().hex[:6]
+    no_website_item.source_identifier = f"test_no_web_{uid}"
+    no_website_item.raw_data["name"] = f"Test No Website Business {uid}"
+    no_website_item.raw_data["address"] = f"{uid} Lexington Ave, New York, NY"
+    no_website_item.raw_data["phone"] = f"+1212{uuid.uuid4().int % 10000000:07d}"
     
     resolver = BusinessResolver()
     async with async_session() as db:

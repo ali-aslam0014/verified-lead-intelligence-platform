@@ -57,15 +57,20 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
                 source_configuration=target.source_configuration or {},
             )
 
-            # Try Live Google Places Search first (No API key requirement)
-            live_adapter = LiveGooglePlacesAdapter()
-            raw_results = await live_adapter.search(request)
-
-            # If Live adapter produced results, process them
-            if not raw_results:
-                # Fallback to Google Places API if configured
-                places_adapter = GooglePlacesAdapter()
-                raw_results = await places_adapter.search(request)
+            enabled_sources = target.source_configuration.get("enabled_sources", [])
+            
+            # Select Source Adapter based on Target Configuration
+            if "google_places" in enabled_sources and "live_google_places" not in enabled_sources:
+                try:
+                    places_adapter = GooglePlacesAdapter()
+                    raw_results = await places_adapter.search(request)
+                except GooglePlacesAPIError as api_err:
+                    logger.info(f"GooglePlacesAdapter missing API key ({api_err}), falling back to LiveGooglePlacesAdapter")
+                    live_adapter = LiveGooglePlacesAdapter()
+                    raw_results = await live_adapter.search(request)
+            else:
+                live_adapter = LiveGooglePlacesAdapter()
+                raw_results = await live_adapter.search(request)
 
             # 2. Entity Resolution & Deduplication
             resolver = BusinessResolver()
@@ -97,26 +102,31 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
             await db.commit()
 
             # Update TargetRun status to COMPLETED
+            # Total verified is total valid canonical businesses resolved/associated with this run
+            total_verified_leads = total_unique_businesses + duplicates_merged
+
             target_run.status = TargetRunStatus.COMPLETED
             target_run.completed_at = datetime.now(timezone.utc)
             target_run.total_discovered = total_discovered
-            target_run.total_verified = total_unique_businesses # Unique canonical businesses
+            target_run.total_verified = total_verified_leads
             target_run.error_log = {
                 "raw_api_results": total_discovered,
                 "unique_businesses_created": total_unique_businesses,
                 "duplicates_merged": duplicates_merged,
+                "total_verified_leads": total_verified_leads,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.commit()
 
             logger.info(
                 f"Discovery Run '{target_run_id}' COMPLETED: Discovered={total_discovered}, "
-                f"Unique={total_unique_businesses}, DuplicatesMerged={duplicates_merged}"
+                f"Verified={total_verified_leads} (New={total_unique_businesses}, Merged={duplicates_merged})"
             )
 
             return {
                 "status": "COMPLETED",
                 "total_discovered": total_discovered,
+                "total_verified": total_verified_leads,
                 "unique_businesses": total_unique_businesses,
                 "duplicates_merged": duplicates_merged,
             }

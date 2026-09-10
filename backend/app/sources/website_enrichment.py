@@ -25,7 +25,7 @@ class WebsiteEnrichmentAdapter(BaseSourceAdapter):
 
     @property
     def timeout_seconds(self) -> float:
-        return 10.0
+        return 2.0
 
     async def search(self, request: DiscoveryRequest) -> List[RawDiscoveryResult]:
         # Search is not supported for enrichment adapter; domain enrichment runs on specific URL
