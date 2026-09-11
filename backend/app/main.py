@@ -17,6 +17,23 @@ async def lifespan(app: FastAPI):
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
 
 
+class VercelPathFixMiddleware:
+    """Middleware to strip '/api/index.py' prefix injected by Vercel rewrites."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            path = scope.get("path", "")
+            if path.startswith("/api/index.py"):
+                new_path = path[len("/api/index.py"):]
+                scope["path"] = new_path if new_path else "/"
+            elif path.startswith("/api/index"):
+                new_path = path[len("/api/index"):]
+                scope["path"] = new_path if new_path else "/"
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
@@ -24,6 +41,9 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# Vercel internal path fix middleware
+app.add_middleware(VercelPathFixMiddleware)
 
 # Request context middleware (Request ID, execution time, error logging)
 app.add_middleware(RequestContextMiddleware)
