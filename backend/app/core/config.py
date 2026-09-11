@@ -1,7 +1,17 @@
 import os
+import json
 from typing import List, Union, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Pre-sanitize CORS_ORIGINS from environment before Pydantic Settings reads it
+if "CORS_ORIGINS" in os.environ:
+    raw_cors = os.environ["CORS_ORIGINS"].strip()
+    if not raw_cors:
+        del os.environ["CORS_ORIGINS"]
+    elif not raw_cors.startswith("["):
+        origins = [i.strip() for i in raw_cors.split(",") if i.strip()]
+        os.environ["CORS_ORIGINS"] = json.dumps(origins)
 
 
 class Settings(BaseSettings):
