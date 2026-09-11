@@ -17,8 +17,11 @@ from app.tasks.discovery import execute_discovery_run_async
 
 
 @pytest.mark.asyncio
-async def test_google_places_adapter_missing_key_raises_error():
+async def test_google_places_adapter_missing_key_raises_error(monkeypatch):
     """Verifies strict real-data mandate: missing Google Maps API key raises GooglePlacesAPIError."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "GOOGLE_PLACES_API_KEY", "")
+    monkeypatch.setattr(settings, "GOOGLE_MAPS_API_KEY", "")
     adapter = GooglePlacesAdapter()
     req = DiscoveryRequest(niche="Dental Clinics", geography="Austin, TX")
     
