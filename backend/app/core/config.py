@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "lead_intelligence"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
-    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_3ruCd9azkPeW@ep-lucky-moon-axqfo3b8-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require"
+    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_3ruCd9azkPeW@ep-lucky-moon-axqfo3b8-pooler.c-4.us-east-2.aws.neon.tech/neondb?ssl=require"
 
     # Redis & Queue Configuration
     REDIS_HOST: str = "localhost"
@@ -67,9 +67,11 @@ class Settings(BaseSettings):
     def assemble_db_url(cls, v: str) -> str:
         if isinstance(v, str):
             if v.startswith("postgresql://"):
-                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+                v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
             elif v.startswith("postgres://"):
-                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+                v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+            if "sslmode=" in v:
+                v = v.replace("sslmode=", "ssl=", 1)
         return v
 
     @field_validator("CORS_ORIGINS", mode="before")
