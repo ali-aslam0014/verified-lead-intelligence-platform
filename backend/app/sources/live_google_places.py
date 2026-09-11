@@ -7,13 +7,16 @@ import httpx
 from bs4 import BeautifulSoup
 from app.sources.base import BaseSourceAdapter, DiscoveryRequest, RawDiscoveryResult
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
 class LiveGooglePlacesAdapter(BaseSourceAdapter):
     """
     Live Google My Business & Web Search Discovery Adapter.
-    Executes real live web queries without requiring paid API keys.
+    Prioritizes Official Google Places API (New V1 Text Search) when API key is present.
+    Fallback to Yelp Directory API/Scraper & DuckDuckGo search when API key is missing.
     Extracts real business name, phone, address, website availability (Yes/No),
     ratings, review counts, and social links (LinkedIn, Facebook, Instagram).
     """
@@ -30,7 +33,7 @@ class LiveGooglePlacesAdapter(BaseSourceAdapter):
 
     @property
     def timeout_seconds(self) -> float:
-        return 3.0
+        return 5.0
 
     async def search(self, request: DiscoveryRequest) -> List[RawDiscoveryResult]:
         query = f"{request.niche} in {request.geography}"
@@ -39,15 +42,136 @@ class LiveGooglePlacesAdapter(BaseSourceAdapter):
 
         logger.info(f"Executing Live Google My Business Discovery for query: '{query}'")
 
+        # Priority 1: Official Google Places API (if API Key configured)
+        api_key = getattr(settings, "GOOGLE_PLACES_API_KEY", "") or getattr(settings, "GOOGLE_MAPS_API_KEY", "")
+        if api_key:
+            logger.info(f"Google Places API Key detected. Executing official Places API query for '{query}'")
+            api_results = await self._fetch_google_places_api(api_key, query, request.geography, request.niche)
+            if api_results:
+                limit = min(request.source_configuration.get("max_results_limit", 20), len(api_results))
+                return api_results[:limit]
+
+        # Priority 2: Live Web Search / Directory Scraper (DuckDuckGo + Yelp)
         results = await self._fetch_live_listings(query, request.geography, request.niche)
         
-        # If web search returns empty or blocked, fallback to curated real business directory for requested city & niche
+        # Priority 3: Real City Directory fallback if web search is empty or rate limited
         if not results:
             logger.info(f"Live web search returned empty, utilizing real city directory fallback for '{query}'")
             results = self._generate_real_city_directory(request.niche, request.geography)
 
         limit = min(request.source_configuration.get("max_results_limit", 20), len(results))
         return results[:limit]
+
+    async def _fetch_google_places_api(self, api_key: str, query: str, geography: str, niche: str) -> List[RawDiscoveryResult]:
+        results: List[RawDiscoveryResult] = []
+        new_places_url = "https://places.googleapis.com/v1/places:searchText"
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryTypeDisplayName"
+        }
+        body = {"textQuery": query}
+
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.post(new_places_url, json=body, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    places = data.get("places", [])
+                    for place in places:
+                        name = place.get("displayName", {}).get("text") or place.get("id")
+                        if not name:
+                            continue
+                        address = place.get("formattedAddress") or geography
+                        phone = place.get("nationalPhoneNumber")
+                        website = place.get("websiteUri")
+                        rating = place.get("rating")
+                        review_count = place.get("userRatingCount")
+                        has_website = bool(website)
+                        
+                        opp_signals = []
+                        if not has_website:
+                            opp_signals.append("NO_WEBSITE")
+                            opp_signals.append("HOT_WEB_DEV_LEAD")
+                        if not phone:
+                            opp_signals.append("MISSING_PHONE")
+
+                        clean_domain = self._extract_clean_domain(website, website) if website else None
+
+                        raw_dict = {
+                            "name": name,
+                            "address": address,
+                            "phone": phone,
+                            "website": website,
+                            "domain": clean_domain,
+                            "has_website": has_website,
+                            "rating": rating,
+                            "review_count": review_count,
+                            "place_id": place.get("id"),
+                            "google_maps_url": place.get("googleMapsUri"),
+                            "social_links": {},
+                            "opportunity_signals": opp_signals,
+                            "provenance_source": "google_places_api_v1"
+                        }
+
+                        results.append(RawDiscoveryResult(
+                            source_name=self.source_name,
+                            source_identifier=place.get("id") or f"gplace_{name.lower().replace(' ', '_')}",
+                            raw_data=raw_dict,
+                            observed_at=datetime.now(timezone.utc)
+                        ))
+                    if results:
+                        logger.info(f"Google Places API V1 successfully returned {len(results)} real places for '{query}'.")
+                        return results
+                else:
+                    logger.warning(f"Google Places API V1 returned status {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.warning(f"Google Places API V1 request failed: {str(e)}")
+
+        # Fallback to Legacy Places Text Search API if V1 endpoint is not enabled or returns empty
+        try:
+            legacy_url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={urllib.parse.quote_plus(query)}&key={api_key}"
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(legacy_url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results_list = data.get("results", [])
+                    for place in results_list:
+                        name = place.get("name")
+                        if not name:
+                            continue
+                        address = place.get("formatted_address") or geography
+                        rating = place.get("rating")
+                        review_count = place.get("user_ratings_total")
+                        place_id = place.get("place_id")
+
+                        raw_dict = {
+                            "name": name,
+                            "address": address,
+                            "phone": None,
+                            "website": None,
+                            "has_website": False,
+                            "rating": rating,
+                            "review_count": review_count,
+                            "place_id": place_id,
+                            "social_links": {},
+                            "opportunity_signals": ["NO_WEBSITE"],
+                            "provenance_source": "google_places_legacy_api"
+                        }
+
+                        results.append(RawDiscoveryResult(
+                            source_name=self.source_name,
+                            source_identifier=place_id or f"gplace_{name.lower().replace(' ', '_')}",
+                            raw_data=raw_dict,
+                            observed_at=datetime.now(timezone.utc)
+                        ))
+                    if results:
+                        logger.info(f"Google Places Legacy API returned {len(results)} places for '{query}'.")
+                        return results
+        except Exception as e:
+            logger.warning(f"Google Places Legacy API request failed: {str(e)}")
+
+        return results
 
     async def _fetch_live_listings(self, query: str, geography: str, niche: str) -> List[RawDiscoveryResult]:
         headers = {
