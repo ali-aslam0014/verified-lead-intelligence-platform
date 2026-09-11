@@ -18,9 +18,13 @@ class Opportunity(Base, UUIDMixin, TimestampMixin):
     type: Mapped[OpportunityType] = mapped_column(
         SQLEnum(OpportunityType, name="opportunity_type_enum"), nullable=False, index=True
     )
+    status: Mapped[str] = mapped_column(String(50), default="CONFIRMED", nullable=False, index=True)
+    priority: Mapped[str] = mapped_column(String(20), default="HIGH", nullable=False, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False, index=True)
     evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    evidence_ids: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     recommended_service: Mapped[str] = mapped_column(String(255), nullable=False)
+    recommended_angle: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     reason: Mapped[str] = mapped_column(String(1000), nullable=False)
 
 

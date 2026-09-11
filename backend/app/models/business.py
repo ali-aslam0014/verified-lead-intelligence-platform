@@ -27,11 +27,13 @@ class Business(Base, UUIDMixin, TimestampMixin):
         SQLEnum(LifecycleStatus, name="lifecycle_status_enum"), default=LifecycleStatus.DISCOVERED, nullable=False, index=True
     )
 
-    # Summary Scores
+    # Summary Scores & Verification Timestamps
     business_confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     contact_confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     opportunity_confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     lead_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False, index=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    verification_summary: Mapped[Optional[dict]] = mapped_column(JSON, default=dict, nullable=True)
 
     # Relationships
     source_records: Mapped[List["SourceRecord"]] = relationship("SourceRecord", back_populates="business", cascade="all, delete-orphan")
@@ -58,6 +60,7 @@ class SourceRecord(Base, UUIDMixin, TimestampMixin):
     target_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("target_runs.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    target_run: Mapped[Optional["TargetRun"]] = relationship("TargetRun", foreign_keys=[target_run_id])
 
     source_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     source_identifier: Mapped[str] = mapped_column(String(255), nullable=False)

@@ -78,6 +78,7 @@ async def list_businesses(
     limit: int = Query(20, ge=1, le=100, description="Page size limit"),
     search: Optional[str] = Query(None, description="Search by business name, city, or phone"),
     city: Optional[str] = Query(None, description="Filter by city"),
+    target_id: Optional[uuid.UUID] = Query(None, description="Filter leads by parent Target Campaign ID"),
     has_website: Optional[bool] = Query(None, description="Filter by website availability"),
     status: Optional[LifecycleStatus] = Query(None, description="Filter by lifecycle status"),
     db: AsyncSession = Depends(get_db)
@@ -85,7 +86,10 @@ async def list_businesses(
     """
     Retrieves paginated list of canonical Business entities.
     Returns discovered lead records with website domain links and source counts.
+    Supports filtering by target_id, city, search term, and website status.
     """
+    from app.models.target import TargetRun
+
     query = (
         select(Business)
         .options(
@@ -95,11 +99,26 @@ async def list_businesses(
         )
     )
 
+    if target_id:
+        subq = (
+            select(SourceRecord.business_id)
+            .join(TargetRun, SourceRecord.target_run_id == TargetRun.id)
+            .where(TargetRun.target_id == target_id)
+        )
+        query = query.where(Business.id.in_(subq))
+
     if status:
         query = query.where(Business.lifecycle_status == status)
 
     if city:
-        query = query.where(Business.city.ilike(f"%{city}%"))
+        clean_city = city.split(",")[0].strip()
+        if clean_city:
+            query = query.where(
+                or_(
+                    Business.city.ilike(f"%{clean_city}%"),
+                    Business.address.ilike(f"%{clean_city}%"),
+                )
+            )
 
     if search:
         search_pattern = f"%{search.strip()}%"
@@ -107,6 +126,7 @@ async def list_businesses(
             or_(
                 Business.name.ilike(search_pattern),
                 Business.city.ilike(search_pattern),
+                Business.address.ilike(search_pattern),
                 Business.phone.ilike(search_pattern),
             )
         )

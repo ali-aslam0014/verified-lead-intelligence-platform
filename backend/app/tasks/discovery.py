@@ -59,16 +59,28 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
 
             enabled_sources = target.source_configuration.get("enabled_sources", [])
             
-            # Select Source Adapter based on Target Configuration
-            if "google_places" in enabled_sources and "live_google_places" not in enabled_sources:
+            from app.sources.yelp import YelpAdapter
+
+            raw_results = []
+            
+            # 1. Attempt Google Places if enabled and configured
+            if "google_places" in enabled_sources:
                 try:
                     places_adapter = GooglePlacesAdapter()
                     raw_results = await places_adapter.search(request)
-                except GooglePlacesAPIError as api_err:
-                    logger.info(f"GooglePlacesAdapter missing API key ({api_err}), falling back to LiveGooglePlacesAdapter")
-                    live_adapter = LiveGooglePlacesAdapter()
-                    raw_results = await live_adapter.search(request)
-            else:
+                except Exception as exc:
+                    logger.warning(f"Google Places API adapter skipped or failed: {exc}. Falling back to Yelp Direct Directory.")
+
+            # 2. If Google Places returned no results, try Yelp Direct Directory
+            if not raw_results:
+                try:
+                    yelp_adapter = YelpAdapter()
+                    raw_results = await yelp_adapter.search(request)
+                except Exception as exc:
+                    logger.warning(f"Yelp adapter search failed: {exc}. Falling back to Live Search Directory.")
+
+            # 3. Fallback to Live Search Directory Engine
+            if not raw_results:
                 live_adapter = LiveGooglePlacesAdapter()
                 raw_results = await live_adapter.search(request)
 

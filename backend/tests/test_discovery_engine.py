@@ -135,11 +135,11 @@ async def test_business_resolver_tier3_isolation(async_session: async_sessionmak
 
 
 @pytest.mark.asyncio
-async def test_discovery_run_worker_failed_state_when_no_api_key(async_session: async_sessionmaker):
-    """Verifies discovery worker updates TargetRun to FAILED status when GOOGLE_MAPS_API_KEY is missing."""
+async def test_discovery_run_worker_resilient_fallback_when_no_api_key(async_session: async_sessionmaker):
+    """Verifies discovery worker gracefully falls back to directory scraping when GOOGLE_MAPS_API_KEY is missing."""
     async with async_session() as db:
         target = Target(
-            name="Test API Failure Campaign",
+            name="Test Resilient Fallback Campaign",
             niche="HVAC Services",
             geography="Denver, CO",
             status=TargetStatus.ACTIVE,
@@ -164,13 +164,12 @@ async def test_discovery_run_worker_failed_state_when_no_api_key(async_session: 
     # Execute discovery run worker
     res = await execute_discovery_run_async(run_id)
 
-    assert res["status"] == "FAILED"
-    assert "Google Places API Key is missing" in res["error"]
+    assert res["status"] == "COMPLETED"
+    assert res["total_discovered"] > 0
 
     async with async_session() as db:
         # Re-fetch target run from DB
         stmt = select(TargetRun).where(TargetRun.id == run_id)
         r = await db.execute(stmt)
         tr = r.scalar_one()
-        assert tr.status == TargetRunStatus.FAILED
-        assert tr.error_log["error_type"] == "GooglePlacesAPIError"
+        assert tr.status == TargetRunStatus.COMPLETED

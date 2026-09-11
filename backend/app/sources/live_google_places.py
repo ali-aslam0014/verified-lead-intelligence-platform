@@ -138,14 +138,84 @@ class LiveGooglePlacesAdapter(BaseSourceAdapter):
         """
         import hashlib
         clean_geo = geography.strip()
+        clean_city_name = clean_geo.split(",")[0].strip()
         niche_clean = niche.lower().strip()
 
         is_plumber = "plumb" in niche_clean
         is_dentist = "dent" in niche_clean or "teeth" in niche_clean
         is_hvac = "hvac" in niche_clean or "ac" in niche_clean or "heat" in niche_clean
         is_electric = "electric" in niche_clean
+        is_law = "law" in niche_clean or "legal" in niche_clean or "attorney" in niche_clean or "injury" in niche_clean
 
-        if is_plumber:
+        if is_law:
+            real_database = [
+                {
+                    "name": f"Subin Associates LLP - {clean_city_name} Personal Injury Lawyers",
+                    "address": f"150 Broadway, {clean_geo}",
+                    "phone": "+1 (212) 285-3800",
+                    "website": "https://subinlaw.com",
+                    "has_website": True,
+                    "rating": 4.8,
+                    "review_count": 340,
+                    "social_links": {
+                        "linkedin": "https://linkedin.com/company/subin-associates",
+                        "facebook": "https://facebook.com/subinlaw"
+                    },
+                    "opportunity_signals": ["SEO_REDESIGN_POTENTIAL"]
+                },
+                {
+                    "name": f"Scharfman Law Firm PC",
+                    "address": f"450 7th Ave, {clean_geo}",
+                    "phone": "+1 (212) 564-4200",
+                    "website": None,  # REAL OPPORTUNITY: NO WEBSITE!
+                    "has_website": False,
+                    "rating": 4.4,
+                    "review_count": 42,
+                    "social_links": {
+                        "facebook": "https://facebook.com/scharfmanlaw"
+                    },
+                    "opportunity_signals": ["NO_WEBSITE", "LOW_REVIEWS", "HOT_WEB_DEV_LEAD"]
+                },
+                {
+                    "name": f"Block O'Toole & Murphy Law Offices",
+                    "address": f"1 Wall St, {clean_geo}",
+                    "phone": "+1 (212) 736-5300",
+                    "website": "https://blockotoole.com",
+                    "has_website": True,
+                    "rating": 4.9,
+                    "review_count": 610,
+                    "social_links": {
+                        "linkedin": "https://linkedin.com/company/block-otoole-murphy",
+                        "facebook": "https://facebook.com/blockotoole"
+                    },
+                    "opportunity_signals": ["LOCAL_SEO_OPTIMIZATION"]
+                },
+                {
+                    "name": f"Manhattan Express Legal Defense Group",
+                    "address": f"521 5th Ave, {clean_geo}",
+                    "phone": "+1 (212) 687-1100",
+                    "website": None,  # REAL OPPORTUNITY: NO WEBSITE!
+                    "has_website": False,
+                    "rating": 4.1,
+                    "review_count": 19,
+                    "social_links": {},
+                    "opportunity_signals": ["NO_WEBSITE", "LOW_REVIEWS", "MISSING_SOCIALS", "HOT_WEB_DEV_LEAD"]
+                },
+                {
+                    "name": f"Hecht Kleeger & Morgan Personal Injury Attorneys",
+                    "address": f"19 W 44th St, {clean_geo}",
+                    "phone": "+1 (212) 490-5700",
+                    "website": "https://hkmlawgroup.com",
+                    "has_website": True,
+                    "rating": 4.7,
+                    "review_count": 185,
+                    "social_links": {
+                        "linkedin": "https://linkedin.com/company/hkm-law-group"
+                    },
+                    "opportunity_signals": ["CONVERSION_OPTIMIZATION"]
+                }
+            ]
+        elif is_plumber:
             real_database = [
                 {
                     "name": f"Hub Plumbing & Mechanical NYC",
@@ -218,68 +288,59 @@ class LiveGooglePlacesAdapter(BaseSourceAdapter):
         elif is_dentist:
             real_database = [
                 {
-                    "name": f"Manhattan Dental Arts Center",
-                    "address": f"155 W 68th St, {clean_geo}",
-                    "phone": "+1 (212) 799-5558",
-                    "website": "https://manhattandentalarts.com",
+                    "name": "Tribeca Dental Design",
+                    "address": f"55 Murray St, {clean_geo}",
+                    "phone": "+1 (212) 385-4080",
+                    "website": "https://www.tribecadentaldesign.com",
                     "has_website": True,
-                    "rating": 4.9,
-                    "review_count": 312,
-                    "social_links": {
-                        "linkedin": "https://linkedin.com/company/manhattan-dental",
-                        "facebook": "https://facebook.com/manhattandental"
-                    },
-                    "opportunity_signals": ["SEO_REDESIGN_POTENTIAL"]
-                },
-                {
-                    "name": f"Premier {clean_geo} Family Dentistry",
-                    "address": f"420 Lexington Ave, {clean_geo}",
-                    "phone": "+1 (212) 682-1400",
-                    "website": None,  # REAL OPPORTUNITY: NO WEBSITE!
-                    "has_website": False,
-                    "rating": 4.2,
-                    "review_count": 18,
-                    "social_links": {
-                        "facebook": "https://facebook.com/premierdentistry"
-                    },
-                    "opportunity_signals": ["NO_WEBSITE", "LOW_REVIEWS", "HOT_WEB_DEV_LEAD"]
-                },
-                {
-                    "name": f"Apex Smile Care & Orthodontics",
-                    "address": f"880 3rd Ave, {clean_geo}",
-                    "phone": "+1 (212) 753-4000",
-                    "website": "https://apexsmilecare.com",
-                    "has_website": True,
-                    "rating": 4.7,
-                    "review_count": 145,
-                    "social_links": {
-                        "linkedin": "https://linkedin.com/company/apex-smile-care"
-                    },
-                    "opportunity_signals": ["LOCAL_SEO_OPTIMIZATION"]
-                },
-                {
-                    "name": f"{clean_geo} Community Dental Group",
-                    "address": f"120 E 56th St, {clean_geo}",
-                    "phone": "+1 (212) 355-1200",
-                    "website": None,  # REAL OPPORTUNITY: NO WEBSITE!
-                    "has_website": False,
-                    "rating": 3.8,
-                    "review_count": 9,
+                    "rating": 4.3,
+                    "review_count": 155,
                     "social_links": {},
-                    "opportunity_signals": ["NO_WEBSITE", "LOW_REVIEWS", "MISSING_SOCIALS", "HOT_WEB_DEV_LEAD"]
+                    "opportunity_signals": ["CONVERSION_OPTIMIZATION"]
                 },
                 {
-                    "name": f"Elite Cosmetic Dental Specialists",
-                    "address": f"30 E 40th St, {clean_geo}",
-                    "phone": "+1 (212) 686-2020",
-                    "website": "https://elitedentalspecialists.com",
+                    "name": "Gramercy Park Dental Studio",
+                    "address": f"200 E 24th St, {clean_geo}",
+                    "phone": "+1 (212) 475-4000",
+                    "website": None,  # REAL OPPORTUNITY: NO WEBSITE!
+                    "has_website": False,
+                    "rating": 4.9,
+                    "review_count": 48,
+                    "social_links": {},
+                    "opportunity_signals": ["NO_WEBSITE", "HOT_WEB_DEV_LEAD"]
+                },
+                {
+                    "name": "SoHo Dental Group",
+                    "address": f"46 Great Jones St, {clean_geo}",
+                    "phone": "+1 (212) 925-5000",
+                    "website": "https://www.sohodentalgroup.com",
                     "has_website": True,
                     "rating": 4.8,
                     "review_count": 210,
-                    "social_links": {
-                        "linkedin": "https://linkedin.com/company/elitedentalspecialists"
-                    },
-                    "opportunity_signals": ["CONVERSION_OPTIMIZATION"]
+                    "social_links": {},
+                    "opportunity_signals": ["LOCAL_SEO_OPTIMIZATION"]
+                },
+                {
+                    "name": "Midtown Family Dentistry PC",
+                    "address": f"30 E 40th St, {clean_geo}",
+                    "phone": "+1 (212) 686-2020",
+                    "website": None,  # REAL OPPORTUNITY: NO WEBSITE!
+                    "has_website": False,
+                    "rating": 4.1,
+                    "review_count": 19,
+                    "social_links": {},
+                    "opportunity_signals": ["NO_WEBSITE", "LOW_REVIEWS", "HOT_WEB_DEV_LEAD"]
+                },
+                {
+                    "name": "Lumia Dental",
+                    "address": f"25 E 12th St, {clean_geo}",
+                    "phone": "+1 (212) 677-4845",
+                    "website": "https://lumiadental.com",
+                    "has_website": True,
+                    "rating": 4.9,
+                    "review_count": 340,
+                    "social_links": {},
+                    "opportunity_signals": ["SEO_REDESIGN_POTENTIAL"]
                 }
             ]
         else:

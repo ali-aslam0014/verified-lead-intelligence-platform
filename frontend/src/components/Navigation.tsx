@@ -10,7 +10,8 @@ import {
   Building2, 
   CheckCircle2, 
   FileSpreadsheet, 
-  Layers 
+  Layers,
+  Zap
 } from "lucide-react";
 
 export function NavigationSidebar() {
@@ -48,17 +49,17 @@ export function NavigationSidebar() {
       enabled: true,
     },
     {
-      name: "Verification Review",
-      href: "/verifications",
+      name: "Verification Console",
+      href: "/verification",
       icon: CheckCircle2,
-      enabled: false,
+      enabled: true,
       badge: "Phase 3",
     },
     {
-      name: "Exports",
-      href: "/exports",
-      icon: FileSpreadsheet,
-      enabled: false,
+      name: "Opportunity Intelligence",
+      href: "/leads",
+      icon: Zap,
+      enabled: true,
       badge: "Phase 4",
     },
   ];

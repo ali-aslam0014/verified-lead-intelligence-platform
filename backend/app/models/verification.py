@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, DateTime, ForeignKey, JSON, Enum as SQLEnum
+from sqlalchemy import String, Float, DateTime, ForeignKey, JSON, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base, UUIDMixin, TimestampMixin
@@ -28,6 +28,8 @@ class VerificationResult(Base, UUIDMixin, TimestampMixin):
         SQLEnum(VerificationResultStatus, name="verification_result_status_enum"), nullable=False, index=True
     )
     evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

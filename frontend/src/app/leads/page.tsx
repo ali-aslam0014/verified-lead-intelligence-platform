@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchBusinesses, fetchBusinessDetail, DiscoveredBusiness } from "@/lib/business-api";
+import { fetchBusinessVerificationSummary, fetchBusinessEvidence, triggerBusinessVerification, EvidenceItem, VerificationSummary } from "@/lib/verification-api";
+import { fetchBusinessOpportunities, triggerBusinessOpportunityAnalysis, OpportunityItem } from "@/lib/opportunity-api";
+import { EvidenceDrawer } from "@/components/verification/EvidenceDrawer";
+import { ConflictBanner } from "@/components/verification/ConflictBanner";
+import { WhyThisLeadModal } from "@/components/opportunities/WhyThisLead";
 import { 
   Building2, 
   Search, 
@@ -21,14 +27,39 @@ import {
   Linkedin,
   Facebook,
   Instagram,
-  Filter
+  Filter,
+  Target as TargetIcon,
+  CheckCircle2,
+  HelpCircle,
+  AlertCircle,
+  Lightbulb,
+  Zap
 } from "lucide-react";
 
-export default function LeadDirectoryPage() {
-  const [search, setSearch] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
+function LeadDirectoryContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  const initialTargetId = searchParams.get("target_id") || "";
+  const initialSearch = searchParams.get("search") || "";
+  const initialCity = searchParams.get("city") || "";
+
+  const [targetIdFilter, setTargetIdFilter] = useState(initialTargetId);
+  const [search, setSearch] = useState(initialSearch);
+  const [cityFilter, setCityFilter] = useState(initialCity);
   const [opportunityFilter, setOpportunityFilter] = useState<"ALL" | "NO_WEBSITE" | "HAS_WEBSITE" | "TOP_RATED">("ALL");
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
+
+  const [evidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
+  const [activeEvidenceBizName, setActiveEvidenceBizName] = useState("");
+  const [verifyingBizId, setVerifyingBizId] = useState<string | null>(null);
+
+  // Phase 4 Opportunity State
+  const [whyThisLeadOpen, setWhyThisLeadOpen] = useState(false);
+  const [activeWhyThisLeadBiz, setActiveWhyThisLeadBiz] = useState<{ id: string; name: string; city?: string; verifiedAt?: string } | null>(null);
+  const [activeWhyThisLeadOpps, setActiveWhyThisLeadOpps] = useState<OpportunityItem[]>([]);
+  const [analyzingBizId, setAnalyzingBizId] = useState<string | null>(null);
 
   // Businesses Query
   const {
@@ -39,9 +70,9 @@ export default function LeadDirectoryPage() {
     refetch,
     isFetching,
   } = useQuery<DiscoveredBusiness[]>({
-    queryKey: ["businesses", search, cityFilter, opportunityFilter],
+    queryKey: ["businesses", search, cityFilter, targetIdFilter, opportunityFilter],
     queryFn: () => {
-      const params: any = { search, city: cityFilter };
+      const params: any = { search, city: cityFilter, target_id: targetIdFilter };
       if (opportunityFilter === "NO_WEBSITE") params.has_website = false;
       if (opportunityFilter === "HAS_WEBSITE") params.has_website = true;
       return fetchBusinesses(params);
@@ -54,6 +85,58 @@ export default function LeadDirectoryPage() {
     queryFn: () => fetchBusinessDetail(selectedBusinessId!),
     enabled: !!selectedBusinessId,
   });
+
+  const { data: verSummary } = useQuery<VerificationSummary>({
+    queryKey: ["verSummary", selectedBusinessId],
+    queryFn: () => fetchBusinessVerificationSummary(selectedBusinessId!),
+    enabled: !!selectedBusinessId,
+  });
+
+  async function handleOpenEvidence(bizId: string, bizName: string) {
+    try {
+      setActiveEvidenceBizName(bizName);
+      const items = await fetchBusinessEvidence(bizId);
+      setEvidenceItems(items);
+      setEvidenceDrawerOpen(true);
+    } catch (err) {
+      console.error("Error opening evidence drawer:", err);
+    }
+  }
+
+  async function handleRunSingleVerify(bizId: string) {
+    try {
+      setVerifyingBizId(bizId);
+      await triggerBusinessVerification(bizId);
+      await refetch();
+    } catch (err) {
+      console.error("Error verifying business:", err);
+    } finally {
+      setVerifyingBizId(null);
+    }
+  }
+
+  async function handleOpenWhyThisLead(bizId: string, bizName: string, city?: string | null, verifiedAt?: string | null) {
+    try {
+      setActiveWhyThisLeadBiz({ id: bizId, name: bizName, city: city || undefined, verifiedAt: verifiedAt || undefined });
+      const opps = await fetchBusinessOpportunities(bizId);
+      setActiveWhyThisLeadOpps(opps);
+      setWhyThisLeadOpen(true);
+    } catch (err) {
+      console.error("Error opening Why This Lead modal:", err);
+    }
+  }
+
+  async function handleAnalyzeOpps(bizId: string) {
+    try {
+      setAnalyzingBizId(bizId);
+      await triggerBusinessOpportunityAnalysis(bizId);
+      await refetch();
+    } catch (err) {
+      console.error("Error analyzing opportunities:", err);
+    } finally {
+      setAnalyzingBizId(null);
+    }
+  }
 
   // Filtered Leads Client Processing for TOP_RATED tab
   const filteredBusinesses = (businesses || []).filter((b) => {
@@ -77,11 +160,30 @@ export default function LeadDirectoryPage() {
         <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-indigo-50/80 to-emerald-50/50 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
 
         <div className="space-y-2 relative z-10">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
               Live Google My Business Console
             </span>
             <span className="text-xs text-slate-500 font-medium">Real-World Lead Discovery</span>
+
+            {targetIdFilter && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 animate-pulse">
+                <TargetIcon className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Campaign Filter Active (ID: {targetIdFilter.slice(0, 8)}...)</span>
+                <button
+                  onClick={() => {
+                    setTargetIdFilter("");
+                    setCityFilter("");
+                    setSearch("");
+                    router.push("/leads");
+                  }}
+                  className="hover:bg-emerald-200/50 p-0.5 rounded transition ml-1"
+                  title="Clear Campaign Filter"
+                >
+                  <X className="w-3.5 h-3.5 text-emerald-700" />
+                </button>
+              </span>
+            )}
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight font-display">
             Discovered Lead Directory
@@ -301,8 +403,7 @@ export default function LeadDirectoryPage() {
                   <th className="p-4">Business & Google Rating</th>
                   <th className="p-4">Address / Location</th>
                   <th className="p-4">Phone Number</th>
-                  <th className="p-4">Website Opportunity Status</th>
-                  <th className="p-4">Social Accounts</th>
+                  <th className="p-4">Verification Status</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -310,6 +411,7 @@ export default function LeadDirectoryPage() {
                 {filteredBusinesses.map((b) => {
                   const hasWebsite = b.has_website || !!b.website?.url;
                   const socialLinks = b.social_links || {};
+                  const isVerifying = verifyingBizId === b.id;
 
                   return (
                     <tr key={b.id} className="hover:bg-slate-50/80 transition">
@@ -421,14 +523,77 @@ export default function LeadDirectoryPage() {
                         </div>
                       </td>
 
-                      {/* Action */}
+                      {/* Phase 3 Verification Status */}
+                      <td className="p-4">
+                        {b.lifecycle_status === "VERIFIED" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>VERIFIED</span>
+                          </span>
+                        )}
+                        {b.lifecycle_status === "HUMAN_REVIEW" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                            <AlertCircle className="w-3.5 h-3.5 text-purple-600" />
+                            <span>HUMAN REVIEW</span>
+                          </span>
+                        )}
+                        {b.lifecycle_status === "REVERIFY_REQUIRED" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>REVERIFY</span>
+                          </span>
+                        )}
+                        {b.lifecycle_status !== "VERIFIED" && b.lifecycle_status !== "HUMAN_REVIEW" && b.lifecycle_status !== "REVERIFY_REQUIRED" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                            <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                            <span>DISCOVERED</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
                       <td className="p-4 text-right">
-                        <button
-                          onClick={() => setSelectedBusinessId(b.id)}
-                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold text-xs border border-slate-200 transition"
-                        >
-                          Provenance Audit
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => handleOpenWhyThisLead(b.id, b.name, b.city, b.updated_at)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-[11px] border border-amber-200 transition flex items-center gap-1"
+                            title="Why is this a lead? View Sales Intelligence Pitch Brief"
+                          >
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Why Lead?</span>
+                          </button>
+                          <button
+                            onClick={() => handleAnalyzeOpps(b.id)}
+                            disabled={analyzingBizId === b.id}
+                            className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold text-[11px] border border-purple-200 transition disabled:opacity-50 flex items-center gap-1"
+                            title="Run Phase 4 Opportunity Intelligence Engine"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-purple-600" />
+                            <span>{analyzingBizId === b.id ? "Analyzing..." : "Analyze"}</span>
+                          </button>
+                          <button
+                            onClick={() => handleRunSingleVerify(b.id)}
+                            disabled={isVerifying}
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-[11px] border border-blue-200 transition disabled:opacity-50"
+                            title="Run Phase 3 Verification Engine"
+                          >
+                            {isVerifying ? "Verifying..." : "⚡ Verify"}
+                          </button>
+                          <button
+                            onClick={() => handleOpenEvidence(b.id, b.name)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] border border-slate-200 transition"
+                            title="View Raw Evidence Log"
+                          >
+                            📋 Log
+                          </button>
+                          <button
+                            onClick={() => setSelectedBusinessId(b.id)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-[11px] transition"
+                            title="View Full Audit Payload"
+                          >
+                            Audit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -476,6 +641,11 @@ export default function LeadDirectoryPage() {
                 </div>
               ) : (
                 <>
+                  {/* Phase 3 Conflict Banner */}
+                  {verSummary?.summary?.conflicts && verSummary.summary.conflicts.length > 0 && (
+                    <ConflictBanner conflicts={verSummary.summary.conflicts} />
+                  )}
+
                   {/* Canonical Summary */}
                   <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                     <div>
@@ -527,6 +697,38 @@ export default function LeadDirectoryPage() {
           </div>
         </div>
       )}
+
+      {/* Phase 3 Evidence Slide-over Drawer */}
+      <EvidenceDrawer
+        isOpen={evidenceDrawerOpen}
+        onClose={() => setEvidenceDrawerOpen(false)}
+        businessName={activeEvidenceBizName}
+        evidenceItems={evidenceItems}
+      />
+
+      {/* Phase 4 Why This Lead Pitch Brief Modal */}
+      <WhyThisLeadModal
+        isOpen={whyThisLeadOpen}
+        onClose={() => setWhyThisLeadOpen(false)}
+        businessName={activeWhyThisLeadBiz?.name || "Business"}
+        city={activeWhyThisLeadBiz?.city}
+        verifiedAt={activeWhyThisLeadBiz?.verifiedAt}
+        opportunities={activeWhyThisLeadOpps}
+      />
     </div>
+  );
+}
+
+export default function LeadDirectoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-slate-500 font-medium font-sans">
+          Loading Lead Directory Console...
+        </div>
+      }
+    >
+      <LeadDirectoryContent />
+    </Suspense>
   );
 }

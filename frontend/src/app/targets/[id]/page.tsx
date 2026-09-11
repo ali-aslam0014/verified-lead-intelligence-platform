@@ -258,7 +258,7 @@ export default function TargetDetailPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push(`/leads?search=${encodeURIComponent(target.niche)}&city=${encodeURIComponent(target.geography)}`)}
+              onClick={() => router.push(`/leads?target_id=${target.id}&city=${encodeURIComponent(target.geography.split(",")[0].trim())}`)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition shadow-md shadow-slate-900/10"
             >
               <Building className="w-4 h-4 text-emerald-400" />
