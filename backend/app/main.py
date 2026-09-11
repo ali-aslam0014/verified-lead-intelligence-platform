@@ -50,9 +50,11 @@ app.add_middleware(RequestContextMiddleware)
 
 # CORS middleware
 if settings.CORS_ORIGINS:
+    cors_origins = [str(o) for o in settings.CORS_ORIGINS if o != "*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=cors_origins if cors_origins else ["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origin_regex=r"https?://.*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
