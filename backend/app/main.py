@@ -48,6 +48,45 @@ app.add_middleware(VercelPathFixMiddleware)
 # Request context middleware (Request ID, execution time, error logging)
 app.add_middleware(RequestContextMiddleware)
 
+import json
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+
+class UniversalCORSMiddleware(BaseHTTPMiddleware):
+    """Guarantees CORS headers on all HTTP responses, preflights, and error tracebacks."""
+    async def dispatch(self, request: Request, call_next) -> Response:
+        origin = request.headers.get("origin") or "*"
+        
+        if request.method == "OPTIONS":
+            response = Response(status_code=204)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            logger.error(f"Unhandled endpoint exception: {str(exc)}", exc_info=True)
+            response = Response(
+                content=json.dumps({"detail": str(exc)}),
+                status_code=500,
+                media_type="application/json"
+            )
+
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+
+# Universal CORS middleware
+app.add_middleware(UniversalCORSMiddleware)
+
 # CORS middleware
 if settings.CORS_ORIGINS:
     cors_origins = [str(o) for o in settings.CORS_ORIGINS if o != "*"]
