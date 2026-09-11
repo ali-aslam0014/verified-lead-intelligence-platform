@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "lead_intelligence"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/lead_intelligence"
+    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_3ruCd9azkPeW@ep-lucky-moon-axqfo3b8-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
     # Redis & Queue Configuration
     REDIS_HOST: str = "localhost"
@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Google Places API (New) Credentials
-    GOOGLE_PLACES_API_KEY: str = ""
-    GOOGLE_MAPS_API_KEY: str = ""
+    GOOGLE_PLACES_API_KEY: str = "AIzaSyAaM4DohN1fiCKtKnbYP7dOagMjcidIebo"
+    GOOGLE_MAPS_API_KEY: str = "AIzaSyAaM4DohN1fiCKtKnbYP7dOagMjcidIebo"
     GOOGLE_PLACES_ENABLED: bool = True
 
     # CORS Origins
