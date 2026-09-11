@@ -4,7 +4,11 @@ from typing import List, Union, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Pre-sanitize CORS_ORIGINS from environment before Pydantic Settings reads it
+# Pre-sanitize environment variables from Vercel to prevent Pydantic ValidationError on empty strings
+for env_key in list(os.environ.keys()):
+    if isinstance(os.environ[env_key], str) and os.environ[env_key].strip() == "":
+        del os.environ[env_key]
+
 if "CORS_ORIGINS" in os.environ:
     raw_cors = os.environ["CORS_ORIGINS"].strip()
     if not raw_cors:
@@ -12,6 +16,10 @@ if "CORS_ORIGINS" in os.environ:
     elif not raw_cors.startswith("["):
         origins = [i.strip() for i in raw_cors.split(",") if i.strip()]
         os.environ["CORS_ORIGINS"] = json.dumps(origins)
+
+for port_key in ["POSTGRES_PORT", "REDIS_PORT"]:
+    if port_key in os.environ and not os.environ[port_key].isdigit():
+        del os.environ[port_key]
 
 
 class Settings(BaseSettings):
@@ -41,6 +49,18 @@ class Settings(BaseSettings):
 
     # CORS Origins
     CORS_ORIGINS: Any = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
+
+    @field_validator("POSTGRES_PORT", "REDIS_PORT", mode="before")
+    @classmethod
+    def assemble_ports(cls, v: Any, info) -> int:
+        if v is None or v == "" or (isinstance(v, str) and not v.strip()):
+            return 5432 if info.field_name == "POSTGRES_PORT" else 6379
+        if isinstance(v, str):
+            try:
+                return int(v.strip())
+            except ValueError:
+                return 5432 if info.field_name == "POSTGRES_PORT" else 6379
+        return int(v)
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
