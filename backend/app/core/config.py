@@ -1,5 +1,5 @@
 import os
-from typing import List, Union
+from typing import List, Union, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,11 +25,12 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Google Places API (New) Credentials
+    GOOGLE_PLACES_API_KEY: str = ""
     GOOGLE_MAPS_API_KEY: str = ""
     GOOGLE_PLACES_ENABLED: bool = True
 
     # CORS Origins
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
+    CORS_ORIGINS: Any = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -43,12 +44,25 @@ class Settings(BaseSettings):
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
-            return v
-        raise ValueError(v)
+    def assemble_cors_origins(cls, v: Any) -> List[str]:
+        if not v:
+            return ["*"]
+        if isinstance(v, list):
+            return [str(i) for i in v]
+        if isinstance(v, str):
+            v_str = v.strip()
+            if not v_str:
+                return ["*"]
+            if v_str.startswith("["):
+                try:
+                    import json
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(i) for i in parsed]
+                except Exception:
+                    pass
+            return [i.strip() for i in v_str.split(",") if i.strip()]
+        return ["*"]
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
