@@ -21,6 +21,11 @@ for port_key in ["POSTGRES_PORT", "REDIS_PORT"]:
     if port_key in os.environ and not os.environ[port_key].isdigit():
         del os.environ[port_key]
 
+if "DATABASE_URL" in os.environ:
+    db_env = os.environ["DATABASE_URL"].strip()
+    if "sslmode=" in db_env:
+        os.environ["DATABASE_URL"] = db_env.replace("sslmode=", "ssl=", 1)
+
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Verified Lead Intelligence Platform"
