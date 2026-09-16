@@ -54,6 +54,7 @@ export default function TargetBuilderWizardPage() {
   const [maxEmployees, setMaxEmployees] = useState<string>("");
   const [technologiesInput, setTechnologiesInput] = useState("WordPress, React, Shopify");
   const [keywordsInput, setKeywordsInput] = useState("commercial, B2B, service");
+  const [maxResultsLimit, setMaxResultsLimit] = useState<number>(100);
 
   // Create Target Mutation
   const createMutation = useMutation({
@@ -161,7 +162,7 @@ export default function TargetBuilderWizardPage() {
       },
       source_configuration: {
         enabled_sources: enabledSources,
-        max_results_limit: 100,
+        max_results_limit: maxResultsLimit,
         rate_limit_per_minute: 60,
         timeout_seconds: 30.0,
       },
@@ -180,7 +181,7 @@ export default function TargetBuilderWizardPage() {
 
   const steps = [
     { number: 1, title: "01 Definition", desc: "Niche & Location" },
-    { number: 2, title: "02 Opportunities & Sources", desc: "Sales Signals" },
+    { number: 2, title: "02 Opportunities & Sources", desc: "Sales Signals & Limits" },
     { number: 3, title: "03 Lead Filters", desc: "Revenue & Employees" },
     { number: 4, title: "04 Review & Launch", desc: "Final Review" },
   ];
@@ -340,10 +341,10 @@ export default function TargetBuilderWizardPage() {
             <div>
               <h2 className="text-lg font-bold text-slate-900 font-display flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-indigo-600" />
-                <span>Step 2: Sales Opportunity Signals & Data Sources</span>
+                <span>Step 2: Sales Opportunity Signals & Data Limits</span>
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                Select targeted opportunity signals to discover businesses with specific pain points.
+                Select targeted opportunity signals and target discovery limit per campaign run.
               </p>
             </div>
 
@@ -386,6 +387,37 @@ export default function TargetBuilderWizardPage() {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Target Discovery Volume Limit Selector */}
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Discovery Volume Limit (Leads per Campaign Run)
+                </label>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-indigo-100 text-indigo-800">
+                  {maxResultsLimit} Leads Target
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {[20, 50, 100, 200].map((limitVal) => (
+                  <button
+                    type="button"
+                    key={limitVal}
+                    onClick={() => setMaxResultsLimit(limitVal)}
+                    className={`py-2 px-3 rounded-xl border font-extrabold text-xs transition ${
+                      maxResultsLimit === limitVal
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {limitVal} Leads
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Google Places API will paginate using <code className="text-indigo-600">nextPageToken</code> to retrieve up to {maxResultsLimit} leads per run.
+              </p>
             </div>
 
             <div className="pt-4 border-t border-slate-100 space-y-3">

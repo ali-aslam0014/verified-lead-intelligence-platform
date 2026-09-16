@@ -13,6 +13,14 @@ logger = logging.getLogger("lead_intel")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.PROJECT_NAME} in [{settings.ENVIRONMENT}] mode...")
+    try:
+        from app.core.database import engine
+        from app.models import Base
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema auto-initialized on startup.")
+    except Exception as e:
+        logger.warning(f"Database schema auto-initialization skipped: {str(e)}")
     yield
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
 

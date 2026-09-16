@@ -21,10 +21,22 @@ for port_key in ["POSTGRES_PORT", "REDIS_PORT"]:
     if port_key in os.environ and not os.environ[port_key].isdigit():
         del os.environ[port_key]
 
+NEON_DB_URL = "postgresql+asyncpg://neondb_owner:npg_3ruCd9azkPeW@ep-lucky-moon-axqfo3b8-pooler.c-4.us-east-2.aws.neon.tech/neondb?ssl=require"
+
 if "DATABASE_URL" in os.environ:
     db_env = os.environ["DATABASE_URL"].strip()
-    if "sslmode=" in db_env:
-        os.environ["DATABASE_URL"] = db_env.replace("sslmode=", "ssl=", 1)
+    if not db_env:
+        os.environ["DATABASE_URL"] = NEON_DB_URL
+    else:
+        if "sslmode=" in db_env:
+            db_env = db_env.replace("sslmode=", "ssl=", 1)
+        if db_env.startswith("postgresql://"):
+            db_env = db_env.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif db_env.startswith("postgres://"):
+            db_env = db_env.replace("postgres://", "postgresql+asyncpg://", 1)
+        os.environ["DATABASE_URL"] = db_env
+else:
+    os.environ["DATABASE_URL"] = NEON_DB_URL
 
 
 class Settings(BaseSettings):
