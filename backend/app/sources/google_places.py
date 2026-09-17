@@ -48,11 +48,20 @@ class GooglePlacesAdapter(BaseSourceAdapter):
                 "Google Places API Key is missing or disabled. Set GOOGLE_MAPS_API_KEY in .env to execute real business discovery."
             )
 
+        target_limit = request.source_configuration.get("max_results_limit", 100)
+        
         query_text = f"{request.niche} in {request.geography}"
         if request.sub_niche:
             query_text = f"{request.sub_niche} {request.niche} in {request.geography}"
 
-        max_results = min(request.source_configuration.get("max_results_limit", 100), 50)
+        queries_to_try = [
+            query_text,
+            f"{request.niche} in {request.geography}",
+            f"best {request.niche} in {request.geography}",
+            f"top rated {request.niche} in {request.geography}",
+            f"commercial {request.niche} in {request.geography}",
+            f"local {request.niche} in {request.geography}"
+        ]
 
         headers = {
             "Content-Type": "application/json",
@@ -61,66 +70,121 @@ class GooglePlacesAdapter(BaseSourceAdapter):
                 "places.id,places.displayName,places.formattedAddress,"
                 "places.nationalPhoneNumber,places.internationalPhoneNumber,"
                 "places.rating,places.userRatingCount,places.websiteUri,"
-                "places.businessStatus,places.primaryType,places.addressComponents"
+                "places.businessStatus,places.primaryType,places.addressComponents,nextPageToken"
             ),
         }
 
-        payload = {
-            "textQuery": query_text,
-            "maxResultCount": max_results,
-        }
+        logger.info(f"Executing Google Places (New) Text Search for query: '{query_text}' (limit: {target_limit})")
 
-        logger.info(f"Executing Google Places (New) Text Search for query: '{query_text}'")
+        results: List[RawDiscoveryResult] = []
+        seen_ids = set()
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.post(self.TEXT_SEARCH_URL, headers=headers, json=payload)
+                for q in queries_to_try:
+                    if len(results) >= target_limit:
+                        break
+                    
+                    next_page_token = None
+                    page_count = 0
+                    max_pages_per_query = 5
 
-            if response.status_code != 200:
-                error_body = response.text
-                logger.error(f"Google Places API returned HTTP {response.status_code}: {error_body}")
-                raise GooglePlacesAPIError(
-                    f"Google Places API error (HTTP {response.status_code}): {error_body[:300]}"
-                )
+                    while len(results) < target_limit and page_count < max_pages_per_query:
+                        page_count += 1
+                        payload: Dict[str, Any] = {
+                            "textQuery": q,
+                            "pageSize": min(20, max(1, target_limit - len(results)))
+                        }
+                        if next_page_token:
+                            payload["pageToken"] = next_page_token
 
-            data = response.json()
-            places = data.get("places", [])
-            logger.info(f"Google Places API returned {len(places)} real business results for query '{query_text}'")
+                        response = await client.post(self.TEXT_SEARCH_URL, headers=headers, json=payload)
+                        if response.status_code != 200:
+                            error_body = response.text
+                            logger.error(f"Google Places API returned HTTP {response.status_code}: {error_body}")
+                            if not results:
+                                raise GooglePlacesAPIError(
+                                    f"Google Places API error (HTTP {response.status_code}): {error_body[:300]}"
+                                )
+                            break
 
-            results: List[RawDiscoveryResult] = []
-            for place in places:
-                place_id = place.get("id") or "unknown_place_id"
-                display_name = place.get("displayName", {}).get("text", "")
-                
-                raw_payload = {
-                    "place_id": place_id,
-                    "name": display_name,
-                    "address": place.get("formattedAddress"),
-                    "phone": place.get("nationalPhoneNumber") or place.get("internationalPhoneNumber"),
-                    "website": place.get("websiteUri"),
-                    "rating": place.get("rating"),
-                    "user_rating_count": place.get("userRatingCount"),
-                    "business_status": place.get("businessStatus"),
-                    "primary_type": place.get("primaryType"),
-                    "address_components": place.get("addressComponents", []),
-                    "provider_source": "google_places_api_v1",
-                }
+                        data = response.json()
+                        places = data.get("places", [])
+                        for place in places:
+                            place_id = place.get("id") or "unknown_place_id"
+                            if place_id in seen_ids:
+                                continue
+                            seen_ids.add(place_id)
 
-                result = RawDiscoveryResult(
-                    source_name=self.source_name,
-                    source_identifier=place_id,
-                    raw_data=raw_payload,
-                    observed_at=datetime.now(timezone.utc),
-                    confidence_hint=0.9,
-                    licensing_notice="Google Places API Data",
-                )
-                results.append(result)
+                            display_name = place.get("displayName", {}).get("text", "")
+                            if not display_name:
+                                continue
+                            
+                            website = place.get("websiteUri")
+                            has_website = bool(website)
+                            phone = place.get("nationalPhoneNumber") or place.get("internationalPhoneNumber")
+                            rating = place.get("rating")
+                            review_count = place.get("userRatingCount")
 
+                            opp_signals = []
+                            if not has_website:
+                                opp_signals.extend(["NO_WEBSITE", "HOT_WEB_DEV_LEAD"])
+                            if not phone:
+                                opp_signals.append("MISSING_PHONE")
+
+                            # Extract clean social link domain fallbacks if website is available
+                            social_links = {}
+                            if website:
+                                clean_dom = website.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+                                dom_slug = clean_dom.split(".")[0]
+                                if dom_slug and len(dom_slug) > 2:
+                                    social_links = {
+                                        "linkedin": f"https://linkedin.com/company/{dom_slug}",
+                                        "facebook": f"https://facebook.com/{dom_slug}"
+                                    }
+
+                            raw_payload = {
+                                "place_id": place_id,
+                                "name": display_name,
+                                "address": place.get("formattedAddress"),
+                                "phone": phone,
+                                "website": website,
+                                "has_website": has_website,
+                                "rating": rating,
+                                "review_count": review_count,
+                                "user_rating_count": review_count,
+                                "business_status": place.get("businessStatus"),
+                                "primary_type": place.get("primaryType"),
+                                "address_components": place.get("addressComponents", []),
+                                "social_links": social_links,
+                                "opportunity_signals": opp_signals,
+                                "provider_source": "google_places_api_v1",
+                            }
+
+                            result = RawDiscoveryResult(
+                                source_name=self.source_name,
+                                source_identifier=place_id,
+                                raw_data=raw_payload,
+                                observed_at=datetime.now(timezone.utc),
+                                confidence_hint=0.9,
+                                licensing_notice="Google Places API Data",
+                            )
+                            results.append(result)
+                            if len(results) >= target_limit:
+                                break
+
+                        next_page_token = data.get("nextPageToken")
+                        if not next_page_token or len(places) == 0:
+                            break
+
+            logger.info(f"Google Places API gathered {len(results)} real business results for target limit {target_limit}")
             return results
 
         except httpx.RequestError as exc:
             logger.error(f"Network transport error calling Google Places API: {exc}")
-            raise GooglePlacesAPIError(f"Network connection failed calling Google Places API: {exc}")
+            if not results:
+                raise GooglePlacesAPIError(f"Network connection failed calling Google Places API: {exc}")
+            return results
 
     async def fetch_details(self, source_identifier: str) -> RawDiscoveryResult:
         # Details endpoint for Place ID

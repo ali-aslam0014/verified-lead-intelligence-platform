@@ -107,7 +107,12 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
                 website_url = raw_res.raw_data.get("website")
                 if website_url and is_new:
                     try:
-                        await website_enrichment_adapter.enrich_url(website_url)
+                        enrich_res = await website_enrichment_adapter.enrich_url(website_url)
+                        extracted_socials = enrich_res.raw_data.get("social_links", {})
+                        if extracted_socials:
+                            existing_socials = raw_res.raw_data.get("social_links") or {}
+                            existing_socials.update(extracted_socials)
+                            raw_res.raw_data["social_links"] = existing_socials
                     except Exception as e:
                         logger.warning(f"Secondary website enrichment error for {website_url}: {e}")
 

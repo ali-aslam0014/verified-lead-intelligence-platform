@@ -164,7 +164,7 @@ async def list_businesses(
             } if b.website else None,
             "has_website": b_has_website,
             "rating": latest_sr_data.get("rating"),
-            "review_count": latest_sr_data.get("review_count"),
+            "review_count": latest_sr_data.get("review_count") or latest_sr_data.get("user_rating_count"),
             "social_links": latest_sr_data.get("social_links") or {},
             "opportunity_signals": latest_sr_data.get("opportunity_signals") or (["NO_WEBSITE"] if not b_has_website else []),
             "contacts": [
@@ -248,7 +248,7 @@ async def get_business_detail(
         } if b.website else None,
         "has_website": b_has_website,
         "rating": latest_sr_data.get("rating"),
-        "review_count": latest_sr_data.get("review_count"),
+        "review_count": latest_sr_data.get("review_count") or latest_sr_data.get("user_rating_count"),
         "social_links": latest_sr_data.get("social_links") or {},
         "opportunity_signals": latest_sr_data.get("opportunity_signals") or (["NO_WEBSITE"] if not b_has_website else []),
         "contacts": [

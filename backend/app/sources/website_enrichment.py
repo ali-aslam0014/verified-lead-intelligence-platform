@@ -89,7 +89,22 @@ class WebsiteEnrichmentAdapter(BaseSourceAdapter):
                 if "gtag" in html or "google-analytics" in html:
                     tech_signatures.append("Google Analytics")
                 
+                # Extract Social Media Profiles from HTML href links
+                social_links = {}
+                hrefs = re.findall(r'href=["\'](https?://[^\s"\']+)["\']', html, re.IGNORECASE)
+                for h in hrefs:
+                    h_lower = h.lower()
+                    if "facebook.com" in h_lower and "facebook" not in social_links:
+                        social_links["facebook"] = h
+                    elif "linkedin.com" in h_lower and "linkedin" not in social_links:
+                        social_links["linkedin"] = h
+                    elif "instagram.com" in h_lower and "instagram" not in social_links:
+                        social_links["instagram"] = h
+                    elif ("twitter.com" in h_lower or "x.com" in h_lower) and "twitter" not in social_links:
+                        social_links["twitter"] = h
+
                 raw_payload["detected_tech"] = tech_signatures
+                raw_payload["social_links"] = social_links
                 raw_payload["has_contact_page"] = any(k in html.lower() for k in ["/contact", "contact us", "get in touch"])
 
         except Exception as exc:
