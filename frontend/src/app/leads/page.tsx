@@ -72,7 +72,7 @@ function LeadDirectoryContent() {
   } = useQuery<DiscoveredBusiness[]>({
     queryKey: ["businesses", search, cityFilter, targetIdFilter, opportunityFilter],
     queryFn: () => {
-      const params: any = { search, city: cityFilter, target_id: targetIdFilter };
+      const params: any = { search, city: cityFilter, target_id: targetIdFilter, limit: 100 };
       if (opportunityFilter === "NO_WEBSITE") params.has_website = false;
       if (opportunityFilter === "HAS_WEBSITE") params.has_website = true;
       return fetchBusinesses(params);

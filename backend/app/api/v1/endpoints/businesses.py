@@ -75,7 +75,7 @@ class BusinessDetailResponse(BusinessResponse):
 @router.get("", response_model=List[BusinessResponse], summary="List Discovered Businesses")
 async def list_businesses(
     skip: int = Query(0, ge=0, description="Offset pagination skip count"),
-    limit: int = Query(20, ge=1, le=100, description="Page size limit"),
+    limit: int = Query(100, ge=1, le=500, description="Page size limit"),
     search: Optional[str] = Query(None, description="Search by business name, city, or phone"),
     city: Optional[str] = Query(None, description="Filter by city"),
     target_id: Optional[uuid.UUID] = Query(None, description="Filter leads by parent Target Campaign ID"),
