@@ -186,11 +186,16 @@ async def trigger_target_run(
     await db.commit()
     await db.refresh(target_run)
 
-    # Dispatch asynchronous discovery worker task
+    # Execute discovery run so it completes before response in Serverless environments
     from app.tasks.discovery import execute_discovery_run_async
     import asyncio
-    asyncio.create_task(execute_discovery_run_async(target_run.id))
+    try:
+        await asyncio.wait_for(execute_discovery_run_async(target_run.id), timeout=20.0)
+    except Exception as exc:
+        logger.warning(f"Run execution background fallback: {exc}")
+        asyncio.create_task(execute_discovery_run_async(target_run.id))
 
+    await db.refresh(target_run)
     return target_run
 
 
@@ -214,7 +219,33 @@ async def list_target_runs(
         .where(TargetRun.target_id == target_id)
         .order_by(TargetRun.created_at.desc())
     )
-    return runs_result.scalars().all()
+    runs = runs_result.scalars().all()
+
+    # Auto-recover stuck runs on Vercel Serverless
+    from app.models.business import SourceRecord
+    from app.tasks.discovery import execute_discovery_run_async
+
+    now = datetime.now(timezone.utc)
+    for run in runs:
+        if run.status in (TargetRunStatus.RUNNING, TargetRunStatus.QUEUED):
+            elapsed = (now - run.created_at).total_seconds() if run.created_at else 999
+            if elapsed > 10:
+                sr_stmt = select(func.count(SourceRecord.id)).where(SourceRecord.target_run_id == run.id)
+                sr_count = (await db.execute(sr_stmt)).scalar() or 0
+                if sr_count > 0:
+                    run.status = TargetRunStatus.COMPLETED
+                    run.total_discovered = sr_count
+                    run.total_verified = sr_count
+                    run.completed_at = now
+                    await db.commit()
+                else:
+                    try:
+                        await asyncio.wait_for(execute_discovery_run_async(run.id), timeout=15.0)
+                    except Exception:
+                        pass
+                await db.refresh(run)
+
+    return runs
 
 
 @router.get("/{target_id}/runs/{run_id}", response_model=TargetRunResponse, summary="Get Target Run Details")

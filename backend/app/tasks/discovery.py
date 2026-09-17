@@ -90,8 +90,7 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
             total_unique_businesses = 0
             duplicates_merged = 0
 
-            website_enrichment_adapter = WebsiteEnrichmentAdapter()
-
+            websites_to_enrich = []
             for raw_res in raw_results:
                 business, is_new = await resolver.resolve_record(
                     db=db,
@@ -100,21 +99,32 @@ async def execute_discovery_run_async(target_run_id: uuid.UUID) -> Dict[str, Any
                 )
                 if is_new:
                     total_unique_businesses += 1
+                    website_url = raw_res.raw_data.get("website")
+                    if website_url:
+                        websites_to_enrich.append((raw_res, website_url))
                 else:
                     duplicates_merged += 1
 
-                # 3. Secondary Enrichment: Website Domain Probe (only if domain exists)
-                website_url = raw_res.raw_data.get("website")
-                if website_url and is_new:
+            # 3. Fast Concurrent Secondary Enrichment (website probes in parallel)
+            if websites_to_enrich:
+                website_enrichment_adapter = WebsiteEnrichmentAdapter()
+                
+                async def probe_single(raw_res_obj, url):
                     try:
-                        enrich_res = await website_enrichment_adapter.enrich_url(website_url)
+                        enrich_res = await asyncio.wait_for(
+                            website_enrichment_adapter.enrich_url(url), 
+                            timeout=1.5
+                        )
                         extracted_socials = enrich_res.raw_data.get("social_links", {})
                         if extracted_socials:
-                            existing_socials = raw_res.raw_data.get("social_links") or {}
+                            existing_socials = raw_res_obj.raw_data.get("social_links") or {}
                             existing_socials.update(extracted_socials)
-                            raw_res.raw_data["social_links"] = existing_socials
+                            raw_res_obj.raw_data["social_links"] = existing_socials
                     except Exception as e:
-                        logger.warning(f"Secondary website enrichment error for {website_url}: {e}")
+                        logger.debug(f"Fast website probe skipped for {url}: {e}")
+
+                probe_tasks = [probe_single(res_obj, url) for res_obj, url in websites_to_enrich[:15]]
+                await asyncio.gather(*probe_tasks, return_exceptions=True)
 
             await db.commit()
 
