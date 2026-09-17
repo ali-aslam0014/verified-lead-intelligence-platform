@@ -1,4 +1,5 @@
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,6 +15,8 @@ from app.schemas.target import (
     TargetResponse,
     TargetRunResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
