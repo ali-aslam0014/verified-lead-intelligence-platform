@@ -193,7 +193,7 @@ async def trigger_target_run(
     from app.tasks.discovery import execute_discovery_run_async
     import asyncio
     try:
-        await asyncio.wait_for(execute_discovery_run_async(target_run.id), timeout=20.0)
+        await asyncio.wait_for(execute_discovery_run_async(target_run.id), timeout=40.0)
     except Exception as exc:
         logger.warning(f"Run execution background fallback: {exc}")
         asyncio.create_task(execute_discovery_run_async(target_run.id))
@@ -232,7 +232,7 @@ async def list_target_runs(
     for run in runs:
         if run.status in (TargetRunStatus.RUNNING, TargetRunStatus.QUEUED):
             elapsed = (now - run.created_at).total_seconds() if run.created_at else 999
-            if elapsed > 10:
+            if elapsed > 5:
                 sr_stmt = select(func.count(SourceRecord.id)).where(SourceRecord.target_run_id == run.id)
                 sr_count = (await db.execute(sr_stmt)).scalar() or 0
                 if sr_count > 0:
@@ -243,7 +243,7 @@ async def list_target_runs(
                     await db.commit()
                 else:
                     try:
-                        await asyncio.wait_for(execute_discovery_run_async(run.id), timeout=15.0)
+                        await asyncio.wait_for(execute_discovery_run_async(run.id), timeout=35.0)
                     except Exception:
                         pass
                 await db.refresh(run)
