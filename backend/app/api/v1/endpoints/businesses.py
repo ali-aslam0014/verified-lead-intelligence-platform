@@ -186,6 +186,138 @@ async def list_businesses(
     return response_items
 
 
+@router.get("/export/csv", summary="Export Discovered Leads to CSV / Excel")
+async def export_businesses_csv(
+    search: Optional[str] = Query(None, description="Search by business name, city, or phone"),
+    city: Optional[str] = Query(None, description="Filter by city"),
+    target_id: Optional[uuid.UUID] = Query(None, description="Filter leads by parent Target Campaign ID"),
+    has_website: Optional[bool] = Query(None, description="Filter by website availability"),
+    status: Optional[LifecycleStatus] = Query(None, description="Filter by lifecycle status"),
+    limit: int = Query(2000, ge=1, le=5000, description="Export row limit"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Generates and streams a clean CSV export file of discovered lead intelligence records.
+    Filterable by campaign target_id, website availability (Missing vs Has Website), city, and status.
+    Can be opened directly in Microsoft Excel, Google Sheets, or imported into CRMs.
+    """
+    import csv
+    import io
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse
+    from app.models.target import TargetRun
+
+    query = (
+        select(Business)
+        .options(
+            selectinload(Business.website),
+            selectinload(Business.contacts),
+            selectinload(Business.source_records),
+        )
+    )
+
+    if target_id:
+        subq = (
+            select(SourceRecord.business_id)
+            .join(TargetRun, SourceRecord.target_run_id == TargetRun.id)
+            .where(TargetRun.target_id == target_id)
+        )
+        query = query.where(Business.id.in_(subq))
+
+    if status:
+        query = query.where(Business.lifecycle_status == status)
+
+    if city:
+        clean_city = city.split(",")[0].strip()
+        if clean_city:
+            query = query.where(
+                or_(
+                    Business.city.ilike(f"%{clean_city}%"),
+                    Business.address.ilike(f"%{clean_city}%"),
+                )
+            )
+
+    if search:
+        search_pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                Business.name.ilike(search_pattern),
+                Business.city.ilike(search_pattern),
+                Business.address.ilike(search_pattern),
+                Business.phone.ilike(search_pattern),
+            )
+        )
+
+    query = query.order_by(Business.created_at.desc()).limit(limit)
+    result = await db.execute(query)
+    businesses = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write CSV Header
+    writer.writerow([
+        "Business Name",
+        "Category",
+        "Phone Number",
+        "Website Status",
+        "Website URL",
+        "Domain",
+        "Address / Location",
+        "City",
+        "State",
+        "Postal Code",
+        "Google Rating",
+        "Review Count",
+        "LinkedIn Profile",
+        "Facebook Page",
+        "Instagram Account",
+        "Verification Status",
+        "Opportunity Signals",
+        "Discovered Date"
+    ])
+
+    for b in businesses:
+        latest_sr_data = b.source_records[0].raw_data if b.source_records else {}
+        b_has_website = bool(b.website or latest_sr_data.get("has_website") or latest_sr_data.get("website"))
+        
+        if has_website is not None and b_has_website != has_website:
+            continue
+
+        socials = latest_sr_data.get("social_links") or {}
+        opp_signals = latest_sr_data.get("opportunity_signals") or (["NO_WEBSITE"] if not b_has_website else [])
+
+        writer.writerow([
+            b.name,
+            b.category or "General Business",
+            b.phone or latest_sr_data.get("phone") or "",
+            "Has Website" if b_has_website else "No Website (Hot Lead)",
+            b.website.url if b.website else (latest_sr_data.get("website") or ""),
+            b.website.domain if b.website else "",
+            b.address or "",
+            b.city or "",
+            b.state or "",
+            b.postal_code or "",
+            latest_sr_data.get("rating") or "",
+            latest_sr_data.get("review_count") or latest_sr_data.get("user_rating_count") or "",
+            socials.get("linkedin") or "",
+            socials.get("facebook") or "",
+            socials.get("instagram") or "",
+            b.lifecycle_status.value,
+            ", ".join(opp_signals),
+            b.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        ])
+
+    output.seek(0)
+    filename = f"leads_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
 @router.get("/{business_id}", response_model=BusinessDetailResponse, summary="Get Discovered Business Detail & Raw Provenance")
 async def get_business_detail(
     business_id: uuid.UUID,

@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { fetchBusinesses, fetchBusinessDetail, DiscoveredBusiness } from "@/lib/business-api";
+import { fetchBusinesses, fetchBusinessDetail, DiscoveredBusiness, getExportCSVUrl } from "@/lib/business-api";
 import { fetchBusinessVerificationSummary, fetchBusinessEvidence, triggerBusinessVerification, EvidenceItem, VerificationSummary } from "@/lib/verification-api";
 import { fetchBusinessOpportunities, triggerBusinessOpportunityAnalysis, OpportunityItem } from "@/lib/opportunity-api";
 import { EvidenceDrawer } from "@/components/verification/EvidenceDrawer";
@@ -33,7 +33,9 @@ import {
   HelpCircle,
   AlertCircle,
   Lightbulb,
-  Zap
+  Zap,
+  Download,
+  FileSpreadsheet
 } from "lucide-react";
 
 function LeadDirectoryContent() {
@@ -138,6 +140,23 @@ function LeadDirectoryContent() {
     }
   }
 
+  const handleExportCSV = (exportHasWebsite?: boolean) => {
+    const params: any = {
+      search,
+      city: cityFilter,
+      target_id: targetIdFilter,
+      limit: 2000,
+    };
+    if (exportHasWebsite !== undefined) {
+      params.has_website = exportHasWebsite;
+    } else {
+      if (opportunityFilter === "NO_WEBSITE") params.has_website = false;
+      if (opportunityFilter === "HAS_WEBSITE") params.has_website = true;
+    }
+    const url = getExportCSVUrl(params);
+    window.open(url, "_blank");
+  };
+
   // Filtered Leads Client Processing for TOP_RATED tab
   const filteredBusinesses = (businesses || []).filter((b) => {
     if (opportunityFilter === "TOP_RATED") {
@@ -193,14 +212,34 @@ function LeadDirectoryContent() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 relative z-10">
+        <div className="flex items-center gap-3 relative z-10 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleExportCSV()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm"
+              title="Download CSV for Excel & Google Sheets"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Export CSV (Google Sheets)</span>
+            </button>
+
+            <button
+              onClick={() => handleExportCSV(false)}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 font-semibold text-xs border border-rose-200 transition"
+              title="Export Hot Leads (No Website) to CSV"
+            >
+              <Flame className="w-3.5 h-3.5 text-rose-600" />
+              <span>No-Website CSV</span>
+            </button>
+          </div>
+
           <button
             onClick={() => refetch()}
             disabled={isFetching}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-            <span>Refresh Directory</span>
+            <span>Refresh</span>
           </button>
         </div>
       </div>

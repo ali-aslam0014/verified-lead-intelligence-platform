@@ -104,6 +104,18 @@ export async function fetchBusinesses(params?: { search?: string; city?: string;
   return handleResponse<DiscoveredBusiness[]>(res);
 }
 
+export function getExportCSVUrl(params?: { search?: string; city?: string; target_id?: string; status?: string; has_website?: boolean; limit?: number }): string {
+  const query = new URLSearchParams();
+  query.append("limit", String(params?.limit || 2000));
+  if (params?.search) query.append("search", params.search);
+  if (params?.city) query.append("city", params.city);
+  if (params?.target_id) query.append("target_id", params.target_id);
+  if (params?.status) query.append("status", params.status);
+  if (params?.has_website !== undefined) query.append("has_website", String(params.has_website));
+
+  return `${API_BASE_URL}/api/v1/businesses/export/csv?${query.toString()}`;
+}
+
 export async function fetchBusinessDetail(id: string): Promise<DiscoveredBusiness> {
   const res = await fetch(`${API_BASE_URL}/api/v1/businesses/${id}`, {
     cache: "no-store",
