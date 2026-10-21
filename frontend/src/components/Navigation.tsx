@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   FileSpreadsheet, 
   Layers,
-  Zap
+  Zap,
+  BarChart2
 } from "lucide-react";
 
 export function NavigationSidebar() {
@@ -47,6 +48,13 @@ export function NavigationSidebar() {
       href: "/leads",
       icon: Building2,
       enabled: true,
+    },
+    {
+      name: "Website Audit Engine",
+      href: "/audits",
+      icon: BarChart2,
+      enabled: true,
+      badge: "Phase 2B",
     },
     {
       name: "Verification Console",
@@ -112,14 +120,21 @@ export function NavigationSidebar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
                   active
                     ? "bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-xs"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${active ? "text-indigo-600" : "text-slate-500"}`} />
-                <span>{item.name}</span>
+                <div className="flex items-center space-x-3">
+                  <Icon className={`w-4 h-4 ${active ? "text-indigo-600" : "text-slate-500"}`} />
+                  <span>{item.name}</span>
+                </div>
+                {item.badge && (
+                  <span className="text-[10px] bg-indigo-50 text-indigo-600 font-mono px-1.5 py-0.5 rounded border border-indigo-200">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
